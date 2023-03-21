@@ -1,15 +1,10 @@
 const express=require("express");
 const {check,validationResult, Result}=require("express-validator");
-
 const db=require("../models/db");
 const { urlencoded } = require("express");
 const users=require("../models/user");
 const posts=require("../models/post");
 const path = require('path');
-
-
-
-
 const customersupport=require("../models/customersupport");
 const jwt=require("jsonwebtoken")
 require('dotenv').config();
@@ -19,35 +14,22 @@ const formidable = require('formidable');
 const nodemailer = require("nodemailer");
 const { v4: uuidv4 } = require('uuid');
 const fs=require('fs');
-
-const e = require("express");
 const profilephoto = require("../models/profilephoto");
-
 const moredetail=require("../models/moredetail")
-const { findOne, countDocuments } = require("../models/user");
-const { Script } = require("vm");
-const { dirname } = require("path");
-
-
-const {login,register,postregistration,postloginform,registervalidation,loginvalidations}=require("../controllers/login")
-const {userprofile}=require("../controllers/profilecontrollers");
-const { findByIdAndUpdate } = require("../models/post");
-
+const {login,register,postregistration,postloginform}=require("../controllers/usercontroller")
+const{registervalidation,loginvalidations}=require("../validations/uservalidations");
 
 //router is builten middleware in express js 
 const router=express.Router();
 
 
-router.get("/",stoplogin,(req,res)=>{
-  // res.send("server is working fine now")
-res.render("assests/login",{title:"login",login:"false"})
 
-})
-router.get("/login",stoplogin,login)
-router.get("/register",stoplogin,register)
-router.post("/registration",registervalidation,postregistration)
-router.post("/postlogin",loginvalidations,postloginform);
-
+//user routes  (logon and register)
+router.get("/",stoplogin,(req,res)=>{res.render("assests/login",{title:"login",login:"false"})})
+router.get("/login",stoplogin,login)//display login form page through ejs view engine
+router.get("/register",stoplogin,register)//display register form page
+router.post("/registration",registervalidation,postregistration)//post register form
+router.post("/postlogin",loginvalidations,postloginform);//post login form
 
 
 
@@ -55,18 +37,7 @@ router.post("/postlogin",loginvalidations,postloginform);
 
 
 router.get("/profile/:page",auth,async(req,res)=>{
-
-   console.log("token "+req.session.user);
-
-
-   
-
-
-
-
-
 const id=req.id;
-
 const currentuser=await users.findById(id);
 const name=currentuser.name;
 const email=currentuser.email;
@@ -125,32 +96,24 @@ profilecomlete=profilecomlete+20;
 
 
 if(noofposts>=1){
-
-   profilecomlete=profilecomlete+30;
-   
-   }
-
-
+profilecomlete=profilecomlete+30;
+      }
 if(moredetails!==null){
-
    profilecomlete=profilecomlete+30;
    
    }
-      
-
-
 res.render("assests/profile",{login:true,id:id,name,email,phone,currentposts,allposts,count:countDocuments,current:curretpage,perpage:perpage,existphoto,pro:profilecomlete,currentuser});
-console.log(name);
-
 })
 
 
-router.get('/profile',(req,res)=>{
-
-res.redirect('/profile/1')
 
 
-})
+
+
+
+
+
+router.get('/profile',(req,res)=>{res.redirect('/profile/1')})
 
 
 
@@ -164,7 +127,6 @@ router.get("/logout",(req,res)=>{
 })
 
 router.get("/createpost",auth,(req,res)=>{
-
 res.render("assests/postform",{login:true})
 })
 
@@ -174,74 +136,43 @@ res.render("assests/postform",{login:true})
 
 
 router.post("/submitedform",auth,(req,res)=>{
-
    const form = formidable();
    form.parse(req, async(err, fields, files) => {
-
- console.log(fields);      
-      const {title,postblog}=fields;
-      
-      
-      
-      const errors=[];
-    
+   const {title,postblog}=fields;
+ const errors=[];
+//here we used custom validation , not the express validator    
 if(title.length===0){
-
-   errors.push({msg:'title length is very less'})
-      
-   
-   }
+ errors.push({msg:'title length is very less'})
+  }
     
    if(postblog.length<50){
-
       errors.push({msg:'title length should minimum 50 characters'})   
-      
-   }
+       }
 
-
-   if(files.image.originalFilename.length===0){
-
-      errors.push({msg:'image not uploaded so try again'})   
+ if(files.image.originalFilename.length===0){
+errors.push({msg:'image not uploaded so try again'})   
       }
 
 
-      const imagename=files.image.originalFilename;
+    const imagename=files.image.originalFilename;
    const split=imagename.split(".");
    const imageext=split[split.length-1].toUpperCase();
 
-
-
-
-
-
-
-
 if(imageext!='JPG' && imageext!='PNG'){
 errors.push({msg:'kindly upload jpg or png files. '+imageext+' is not supported'})
-
 }
-
-
 
    if(errors.length!==0){
       console.log(errors);
       console.log(imageext);
-
       res.render("assests/postform",{errors,login:true})
-
    }else{
-
 files.image.originalFilename=uuidv4()+'.'+imageext;
       const oldpath=files.image.filepath;
       const newpath="E:/blog website/views/uploads/"+files.image.originalFilename;
-      
-      
       fs.readFile(oldpath,(err,data)=>{
-      
       if(!err){
-      
             fs.writeFile(newpath,data,(err)=>{
-      
       if(!err){
           fs.unlink(oldpath,(err)=>{
       if(!err){
@@ -255,50 +186,20 @@ files.image.originalFilename=uuidv4()+'.'+imageext;
       
 
 
-
-
-
-
-
-
       const ids=req.id;
-      console.log(ids);
       const usname=await users.findOne({_id:ids});
       const username=usname.name
-   
-   
-   
-   
-   const saveposts=new posts({
-   
-      userID:ids,
+      
+      const saveposts=new posts({
+        userID:ids,
          title:title,
          image:files.image.originalFilename,
          post:postblog,
          uname:username
-      
-      
-      
       })
       
    const post=await saveposts.save().then(data=>{console.log(data)}).catch(err=>{console.log(err)})
-   
-   
-
-
-
-
-
-
    }
-
-
-
-
-
-
-
-   
    })
 
 
@@ -309,35 +210,23 @@ files.image.originalFilename=uuidv4()+'.'+imageext;
 
 router.get('/myposts/:page',auth,async(req,res)=>{
 
-
+//code for paginations such as
+//myposts/1
+//myposts/2
+//each page contain 4 post
 let curretpage=1;
 const page=req.params.page;
-
 curretpage=page;
-   
-
 const perpage=4;
 const skippages=(curretpage - 1) * perpage;
-
-
 const id=req.id;
-
-
- const allposts=await posts.find({userID:id}).skip(skippages).limit(perpage).sort({updatedAt:-1})
- 
- const countDocuments=await posts.find({userID:id}).countDocuments();
-
-
-
+const allposts=await posts.find({userID:id}).skip(skippages).limit(perpage).sort({updatedAt:-1})
+const countDocuments=await posts.find({userID:id}).countDocuments();
 res.render('assests/showposts',{login:true,post:allposts,count:countDocuments,current:curretpage,perpage:perpage});
-
-
 })
 
 
-router.get('/myposts',auth,async(req,res)=>{
-res.redirect('/myposts/1')
-});
+router.get('/myposts',auth,async(req,res)=>{res.redirect('/myposts/1')});
 
 
 
@@ -354,11 +243,7 @@ const postdata=await posts.findOne({_id:postid})
 console.log(postdata);
 
 
-res.render('assests/postdetail',{postdata:postdata,loggeduser,postid,login:true})
-
-
-
-})
+res.render('assests/postdetail',{postdata:postdata,loggeduser,postid,login:true})})
 
 
 
