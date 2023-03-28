@@ -2,22 +2,47 @@ const express=require("express");
 const {check,validationResult, Result}=require("express-validator");
 const db=require("../models/db");
 const { urlencoded } = require("express");
-const users=require("../models/user");
-const posts=require("../models/post");
 const path = require('path');
 const customersupport=require("../models/customersupport");
-const jwt=require("jsonwebtoken")
+
 require('dotenv').config();
 const {auth}=require("../middlewares/auth")
 const {stoplogin}=require("../middlewares/auth")
 const formidable = require('formidable');
 const nodemailer = require("nodemailer");
-const { v4: uuidv4 } = require('uuid');
 const fs=require('fs');
+
+
+
+
+
+const users=require("../models/user");
 const profilephoto = require("../models/profilephoto");
+const posts=require("../models/post");
 const moredetail=require("../models/moredetail")
+
+
+
+
+
+
 const {login,register,postregistration,postloginform}=require("../controllers/usercontroller")
 const{registervalidation,loginvalidations}=require("../validations/uservalidations");
+const {profile,logout}=require('../controllers/UserHomePageControllers');
+const {submitpostform,myposts,postdetail,updatepost,submitforupdate,deletepost}=require("../controllers/Postcontrollers")
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 //router is builten middleware in express js 
 const router=express.Router();
@@ -31,202 +56,20 @@ router.get("/register",stoplogin,register)//display register form page
 router.post("/registration",registervalidation,postregistration)//post register form
 router.post("/postlogin",loginvalidations,postloginform);//post login form
 
-
-
-
-
-
-router.get("/profile/:page",auth,async(req,res)=>{
-const id=req.id;
-const currentuser=await users.findById(id);
-const name=currentuser.name;
-const email=currentuser.email;
-const phone=currentuser.phone;
-
-
-const currentposts=await posts.find().sort({updatedAt:-1});
-console.log(currentposts);
-
-
-
-
-
-//code for pagination
-
-
-let curretpage=1;
-const page=req.params.page;
-
-curretpage=page;
-   
-
-const perpage=4;
-const skippages=(curretpage - 1) * perpage;
-
-
- const allposts=await posts.find().skip(skippages).limit(perpage).sort({updatedAt:-1})
- 
- const countDocuments=await posts.find().countDocuments();
-
-
-
-
-
- 
- const existphoto=await profilephoto.findOne({userID:id})
- console.log(existphoto);
-
- //profile completeness calculations and logic
-//  (1)   20% after sucessful account creation
- // (1)profile photo 20%
-// (1)description/about 30%
-// (4)post >=1 add 30% (if post 0 than -20%)
-
-var profilecomlete=20;
-const photo=await profilephoto.findOne({userID:id})
-const moredetails=await moredetail.findOne({userID:id})
-const noofposts=await posts.find({userID:id}).countDocuments();
-console.log("Posts"+noofposts)
-
-if(photo!==null){
-
-profilecomlete=profilecomlete+20;
-
-}
-
-
-if(noofposts>=1){
-profilecomlete=profilecomlete+30;
-      }
-if(moredetails!==null){
-   profilecomlete=profilecomlete+30;
-   
-   }
-res.render("assests/profile",{login:true,id:id,name,email,phone,currentposts,allposts,count:countDocuments,current:curretpage,perpage:perpage,existphoto,pro:profilecomlete,currentuser});
-})
-
-
-
-
-
-
-
-
-
+//user profile home page routes , when user successfully create account, it will redirect here  
+router.get("/profile/:page",auth,profile)
 router.get('/profile',(req,res)=>{res.redirect('/profile/1')})
+router.get("/logout",logout)
 
-
-
-
-
-router.get("/logout",(req,res)=>{
-   req.session.destroy();
-   res.redirect("/login")
-      
-
-})
-
-router.get("/createpost",auth,(req,res)=>{
-res.render("assests/postform",{login:true})
-})
-
-
-
-
-
-
-router.post("/submitedform",auth,(req,res)=>{
-   const form = formidable();
-   form.parse(req, async(err, fields, files) => {
-   const {title,postblog}=fields;
- const errors=[];
-//here we used custom validation , not the express validator    
-if(title.length===0){
- errors.push({msg:'title length is very less'})
-  }
-    
-   if(postblog.length<50){
-      errors.push({msg:'title length should minimum 50 characters'})   
-       }
-
- if(files.image.originalFilename.length===0){
-errors.push({msg:'image not uploaded so try again'})   
-      }
-
-
-    const imagename=files.image.originalFilename;
-   const split=imagename.split(".");
-   const imageext=split[split.length-1].toUpperCase();
-
-if(imageext!='JPG' && imageext!='PNG'){
-errors.push({msg:'kindly upload jpg or png files. '+imageext+' is not supported'})
-}
-
-   if(errors.length!==0){
-      console.log(errors);
-      console.log(imageext);
-      res.render("assests/postform",{errors,login:true})
-   }else{
-files.image.originalFilename=uuidv4()+'.'+imageext;
-      const oldpath=files.image.filepath;
-      const newpath="E:/blog website/views/uploads/"+files.image.originalFilename;
-      fs.readFile(oldpath,(err,data)=>{
-      if(!err){
-            fs.writeFile(newpath,data,(err)=>{
-      if(!err){
-          fs.unlink(oldpath,(err)=>{
-      if(!err){
-         res.redirect('/myposts/1')
-      }
-          })
-      }
-         })}
-      
-      })
-      
-
-
-      const ids=req.id;
-      const usname=await users.findOne({_id:ids});
-      const username=usname.name
-      
-      const saveposts=new posts({
-        userID:ids,
-         title:title,
-         image:files.image.originalFilename,
-         post:postblog,
-         uname:username
-      })
-      
-   const post=await saveposts.save().then(data=>{console.log(data)}).catch(err=>{console.log(err)})
-   }
-   })
-
-
-})
-
-
-
-
-router.get('/myposts/:page',auth,async(req,res)=>{
-
-//code for paginations such as
-//myposts/1
-//myposts/2
-//each page contain 4 post
-let curretpage=1;
-const page=req.params.page;
-curretpage=page;
-const perpage=4;
-const skippages=(curretpage - 1) * perpage;
-const id=req.id;
-const allposts=await posts.find({userID:id}).skip(skippages).limit(perpage).sort({updatedAt:-1})
-const countDocuments=await posts.find({userID:id}).countDocuments();
-res.render('assests/showposts',{login:true,post:allposts,count:countDocuments,current:curretpage,perpage:perpage});
-})
-
-
+//post routes, user can create post,update,delete,view
+router.get("/createpost",auth,(req,res)=>{res.render("assests/postform",{login:true})}) //render create post/blog form
+router.post("/submitpostform",auth,submitpostform)  //submit post/blog to database
+router.get('/myposts/:page',auth,myposts)
 router.get('/myposts',auth,async(req,res)=>{res.redirect('/myposts/1')});
+router.get("/postdetail/:id",auth,postdetail)
+router.get('/updatepost/:id',auth,updatepost)
+router.post('/submitforupdate',[check('title').not().isEmpty().withMessage("please enter the title"),check('postblog').isLength({min:10}).withMessage("enter post ")],auth,submitforupdate)
+router.get("/deletepost/:id",auth,deletepost)
 
 
 
@@ -235,109 +78,12 @@ router.get('/myposts',auth,async(req,res)=>{res.redirect('/myposts/1')});
 
 
 
-router.get("/postdetail/:id",auth,async(req,res)=>{
-const postid=req.params.id;
-const loggeduser=req.id
-
-const postdata=await posts.findOne({_id:postid})
-console.log(postdata);
-
-
-res.render('assests/postdetail',{postdata:postdata,loggeduser,postid,login:true})})
 
 
 
-router.get('/update/:id',auth,async(req,res)=>{
-
-const id =req.params.id;
-const datatoupdate=await posts.findOne({_id:id})
-
-console.log(datatoupdate)
-
-
-
-res.render('assests/update',{datatoupdate:datatoupdate,login:true})
-
-
-
-})
-
-
-router.post('/submitforupdate',[check('title').not().isEmpty().withMessage("please enter the title"),check('postblog').isLength({min:10}).withMessage("enter post ")],auth,async(req,res)=>{
-
-  const errors=validationResult(req);
-  const title=req.body.title;
-  
-  console.log(title);
-  console.log(errors);
-
-  
-  if(!errors.isEmpty()){
-   const uid=req.body.hiddenid;
-   console.log(uid)
-
-const datatoupdate=await posts.findOne({_id:uid})
-res.render('assests/update',{login:true,errors:errors.array(),datatoupdate})
-
-
-
-  }else{
-   const title=req.body.title;
-   const hiddenid=req.body.hiddenid;
-   const blogpost=req.body.postblog;
-try{
-
-   const updatingdata=await posts.findByIdAndUpdate(hiddenid,{title:title,post:blogpost})
-
-
-}catch(err){
-
-res.send(err.msg)
-//msg is function of err
-
-}
-
-
-
-   res.redirect('myposts/1')
-
-
-  }
-   
-   })
-   
-
-router.get("/deletepost/:id",auth,async(req,res)=>{
-   
-   try{
-      const id=req.params.id;
-const deletingdata=await posts.findByIdAndRemove(id);
-
-
-res.redirect("/myposts/1")
-
-
-}catch(err){
-
-
-
-
-   res.send(err.msg)
-}
-
-
-
-
-})
-
-
-
-
-   router.get("/uploadprofile",auth,async(req,res)=>{
-
+router.get("/uploadprofile",auth,async(req,res)=>{
 const id=req.id;
 const existphoto=await profilephoto.findOne({userID:id})
-
 console.log(existphoto)
 
 
